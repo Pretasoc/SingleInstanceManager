@@ -42,7 +42,6 @@ namespace SingleInstanceManager.Tests
 
         [Test()]
         [NonParallelizable]
-        [Timeout(20000)]
         public void RunApplicationTest()
         {
             var parameters = new[] {"a", "b", "longParam with spaces and ` \x305 other chars"};
@@ -69,7 +68,10 @@ namespace SingleInstanceManager.Tests
             t.Start();
             t.Join();
 
-            m.SignalAndWait();
+            if(!m.SignalAndWait(10000))
+            {
+                Assert.Warn("Signal timed out");
+            };
             manager.Shutdown();
 
 
