@@ -42,7 +42,7 @@ namespace SingleInstanceManager.Tests
 
         [Test()]
         [NonParallelizable]
-        [Timeout(5000)]
+        [Timeout(20000)]
         public void RunApplicationTest()
         {
             var parameters = new[] {"a", "b", "longParam with spaces and ` \x305 other chars"};
