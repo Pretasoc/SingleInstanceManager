@@ -1,0 +1,30 @@
+version: 0.1.{build}
+image: Visual Studio 2017
+configuration: Release
+assembly_info:
+  patch: true
+  file: '**\AssemblyInfo.*'
+  assembly_version: '{version}'
+  assembly_file_version: '{version}'
+  assembly_informational_version: '{version}'
+before_build:
+- cmd: >-
+    nuget restore
+build:
+  publish_nuget: true
+  verbosity: minimal
+before_package:
+- cmd: nuget pack
+artifacts:
+- path: '**\*.nupkg'
+deploy:
+- provider: NuGet
+  api_key:
+    secure: Rg7RSBp3doHCCVsBWtC81VfuGTC3I+pkjTDwZjVnjjrhXNf+i0zwAoYPuk2jkqV/
+  on:
+    branch: master
+- provider: GitHub
+  auth_token:
+    secure: k1f5dR8M7kTSaG4FOjPZe7PQtgBgF9ZqolGBvhWdS3duNWe61FPUfD4hV7hH/PAL
+  on:
+    branch: master
