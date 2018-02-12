@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("SingleInstanceManager")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("phirSOFT.SingleInstanceManager")]
+[assembly: AssemblyDescription("Provides a mechanism to create single instance applications, that recives events, when a second instance is started.")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("SingleInstanceManager")]
-[assembly: AssemblyCopyright("Copyright ©  2017")]
+[assembly: AssemblyCompany("phirSOFT")]
+[assembly: AssemblyProduct("phirSOFT.SingleInstanceManager")]
+[assembly: AssemblyCopyright("Copyright ©  2018")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
