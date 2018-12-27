@@ -139,7 +139,10 @@ namespace SingleInstanceManager
             // raise the event
             OnSecondInstanceStarted(args);
 
-
+            // close reader & server to free resources
+            // otherwise, the inter process communication will only work twice...
+            reader.Close();
+            server.Close();
 
         }
 
