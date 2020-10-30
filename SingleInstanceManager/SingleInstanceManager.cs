@@ -2,17 +2,18 @@
 using System.IO;
 using System.IO.Pipes;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace SingleInstanceManager
 {
     /// <summary>
-    /// Provides a Manager for Single instance Applications.
+    ///     Provides a Manager for Single instance Applications.
     /// </summary>
     /// <example>
-    /// This examples shows, how to use a this manager in a single applications main:
-    /// <code>
+    ///     This examples shows, how to use a this manager in a single applications main:
+    ///     <code>
     /// public static int Main(string[] args){
     ///     // submit an optional guid. If no parameter is given the entry assembly name is used.
     ///     var instanceManager = SingleInstanceManager.CreateManager("{GUID}");
@@ -30,22 +31,16 @@ namespace SingleInstanceManager
     /// </example>
     public class SingleInstanceManager : IDisposable
     {
+        private static SingleInstanceManager? _instance;
+        private readonly CancellationTokenSource _cts;
         private readonly Mutex _instanceLockerMutex;
         private readonly string _pipeName;
-        private readonly CancellationTokenSource _cts;
-        private readonly SemaphoreSlim _serverSemaphore = new SemaphoreSlim(2);
-        private readonly TaskFactory _serverFactory;
+        private readonly SynchronizationContext _synchronizationContext = SynchronizationContext.Current;
 
-
-
-        public event EventHandler<SecondInstanceStartupEventArgs> SecondInstanceStarted;
-
-        public static SingleInstanceManager Instance { get; private set; }
-
-        private SingleInstanceManager(string guid)
+        private SingleInstanceManager(string? guid)
         {
             // create a (hopefully) unique mutex name
-            var assemblyName = guid ?? Assembly.GetEntryAssembly()?.FullName ?? "SingleInstanceManager";
+            string assemblyName = guid ?? Assembly.GetEntryAssembly()?.FullName ?? "SingleInstanceManager";
 
             // this mutex will be shared across the system to signal an existing instance
             _instanceLockerMutex = new Mutex(true, assemblyName);
@@ -54,104 +49,27 @@ namespace SingleInstanceManager
             _pipeName = assemblyName + "argsStream";
 
             _cts = new CancellationTokenSource();
-
-            // start manager to listen for second applications
-            _serverFactory = new TaskFactory(_cts.Token);
-
-
         }
 
-        public static SingleInstanceManager CreateManager(string guid = null)
-        {
-            var i = new SingleInstanceManager(guid);
-            Instance = i;
-            return i;
-        }
+        public event EventHandler<SecondInstanceStartupEventArgs>? SecondInstanceStarted;
 
-
-        public void Shutdown()
+        public static SingleInstanceManager Instance
         {
-            _instanceLockerMutex.ReleaseMutex();
-            _cts.Cancel();
-        }
-
-        public bool RunApplication(string[] args)
-        {
-            // if WaitOne returns true, no other instance has taken the mutex
-            if (_instanceLockerMutex.WaitOne(0))
+            get
             {
-
-                Task.Run(() => HandleConnection(_cts.Token));
-
-                return true;
-            }
-
-            // connect to the existing instnace using a named pipe
-            var client = new NamedPipeClientStream(".", _pipeName, PipeDirection.Out);
-            client.Connect();
-
-            // write command line params to other instance.
-            // We use a simple protocoll here:
-            // Send an integer indicating the count of parameters
-            // Send each parameter as length prefixed unicode string.
-            using (var writer = new BinaryWriter(client))
-            {
-                writer.Write(args.Length);
-
-                foreach (var arg in args)
+                while (_instance == null)
                 {
-                    writer.Write(arg);
+                    Interlocked.Exchange(ref _instance, new SingleInstanceManager(null));
                 }
-
-                client.WaitForPipeDrain();
+                return _instance;
             }
-
-            return false;
-        }
-
-        private async Task HandleConnection(CancellationToken cancellationToken)
-        {
-            // Not more than two waiting servers
-            await _serverSemaphore.WaitAsync(cancellationToken);
-
-            // Create a listerner on the pipe
-            var server = new NamedPipeServerStream(_pipeName, PipeDirection.In,2,PipeTransmissionMode.Message);
-            var reader = new BinaryReader(server);
-
-            // it is intendet not to wait. We will spawn a new Server before Accepting a connection
-#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-            _serverFactory.StartNew(() => HandleConnection(cancellationToken), cancellationToken);
-#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-            await server.WaitForConnectionAsync(cancellationToken);
-
-            // This server is now busy, allow an other to go into waiting state
-            _serverSemaphore.Release();
-
-            // read the parameters as defined above
-            var argNumber = reader.ReadInt32();
-            var args = new string[argNumber];
-
-            for (var i = 0; i < argNumber; i++)
+            private set
             {
-                args[i] = reader.ReadString();
+                if (Interlocked.CompareExchange(ref _instance, value, null) != null)
+                {
+                    throw new InvalidOperationException("There is already an instance of the single instance manager");
+                }
             }
-
-            // raise the event
-            OnSecondInstanceStarted(args);
-
-            // close reader & server to free resources
-            // otherwise, the inter process communication will only work twice...
-            reader.Close();
-            server.Close();
-
-        }
-
-
-
-
-        private void OnSecondInstanceStarted(string[] e)
-        {
-            SecondInstanceStarted?.Invoke(null, new SecondInstanceStartupEventArgs(e));
         }
 
         public void Dispose()
@@ -159,6 +77,101 @@ namespace SingleInstanceManager
             _instanceLockerMutex?.Dispose();
 
             _cts?.Dispose();
+        }
+
+        public static SingleInstanceManager CreateManager(string? guid = null)
+        {
+            return Instance = new SingleInstanceManager(guid);
+        }
+
+        public bool RunApplication(string[] args)
+        {
+            try
+            {
+                // if WaitOne returns true, no other instance has taken the mutex
+                if (_instanceLockerMutex.WaitOne(0))
+                {
+                    Task.Factory.StartNew(() => ConnectionLoop(_cts.Token), TaskCreationOptions.LongRunning);
+                    return true;
+                }
+            }
+            catch (AbandonedMutexException)
+            {
+                Task.Factory.StartNew(() => ConnectionLoop(_cts.Token), TaskCreationOptions.LongRunning);
+                return true;
+            }
+
+            // connect to the existing instance using a named pipe
+            NamedPipeClientStream client = new NamedPipeClientStream(".", _pipeName, PipeDirection.Out);
+            client.Connect();
+
+            // write command line params to other instance.
+            // We use a simple protocol here:
+            // Send an integer indicating the count of parameters
+            // Send each parameter as length prefixed unicode string.
+            using BinaryWriter writer = new BinaryWriter(client);
+            writer.Write(args.Length);
+
+            foreach (string arg in args)
+            {
+                writer.Write(arg);
+            }
+
+            client.WaitForPipeDrain();
+
+            return false;
+        }
+
+        public void Shutdown()
+        {
+            _instanceLockerMutex.ReleaseMutex();
+            _cts.Cancel();
+        }
+
+        private async void ConnectionLoop(CancellationToken cancellationToken)
+        {
+            void DoConnection(BinaryReader reader)
+            {
+                int argNumber = reader.ReadInt32();
+                var args = new string[argNumber];
+
+                for (int i = 0; i < argNumber; i++)
+                {
+                    args[i] = reader.ReadString();
+                }
+
+                OnSecondInstanceStarted(args);
+
+                reader.Dispose();
+            }
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                // Create a listeners on the pipe
+                NamedPipeServerStream server = new NamedPipeServerStream(
+                    _pipeName,
+                    PipeDirection.In,
+                    2,
+                    PipeTransmissionMode.Message);
+                BinaryReader reader = new BinaryReader(server, Encoding.Default, false);
+                await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
+                _ = Task.Run(() => DoConnection(reader), cancellationToken);
+            }
+        }
+
+        private void OnSecondInstanceStarted(string[] e)
+        {
+            SecondInstanceStartupEventArgs eventArgs = new SecondInstanceStartupEventArgs(e);
+            if ((_synchronizationContext != null) && SecondInstanceStarted is {} secondInstanceHandler)
+            {
+                _synchronizationContext.Post(
+                    state => secondInstanceHandler.Invoke(null, (SecondInstanceStartupEventArgs) state),
+                    eventArgs);
+            }
+            else
+            {
+                SecondInstanceStarted?.Invoke(null, new SecondInstanceStartupEventArgs(e));
+            }
         }
     }
 }
