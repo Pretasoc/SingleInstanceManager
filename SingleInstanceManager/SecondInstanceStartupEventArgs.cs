@@ -1,15 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace SingleInstanceManager
 {
     public class SecondInstanceStartupEventArgs : EventArgs
     {
-        public SecondInstanceStartupEventArgs(string[] commandLineParameters)
+        public SecondInstanceStartupEventArgs(string[]? commandLineParameters)
         {
-            CommandLineParameters = commandLineParameters;
+            CommandLineParameters = commandLineParameters ?? Array.Empty<string>();
         }
 
         public string[] CommandLineParameters { get; }
