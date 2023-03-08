@@ -135,17 +135,22 @@ namespace SingleInstanceManager
         {
             void DoConnection(BinaryReader reader)
             {
-                int argNumber = reader.ReadInt32();
-                var args = new string[argNumber];
-
-                for (int i = 0; i < argNumber; i++)
+                try
                 {
-                    args[i] = reader.ReadString();
+                    int argNumber = reader.ReadInt32();
+                    string[] args = new string[argNumber];
+
+                    for (int i = 0; i < argNumber; i++)
+                    {
+                        args[i] = reader.ReadString();
+                    }
+
+                    OnSecondInstanceStarted(args);
                 }
-
-                OnSecondInstanceStarted(args);
-
-                reader.Dispose();
+                finally
+                {
+                    reader.Dispose();
+                }
             }
 
             while (!cancellationToken.IsCancellationRequested)
