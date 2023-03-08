@@ -172,7 +172,7 @@ namespace SingleInstanceManager
             }
             else
             {
-                SecondInstanceStarted?.Invoke(null, new SecondInstanceStartupEventArgs(e));
+                ThreadPool.QueueUserWorkItem(o => SecondInstanceStarted?.Invoke(null, (SecondInstanceStartupEventArgs)o), eventArgs);
             }
         }
     }
