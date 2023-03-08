@@ -126,8 +126,7 @@ namespace SingleInstanceManager
 
         public void Shutdown()
         {
-            _instanceLockerMutex.ReleaseMutex();
-            _cts.Cancel();
+            Dispose();
         }
 
         private async void ConnectionLoop(CancellationToken cancellationToken)
