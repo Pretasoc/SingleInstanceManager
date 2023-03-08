@@ -37,7 +37,6 @@ namespace SingleInstanceManager
         private readonly CancellationTokenSource _cts;
         private readonly Mutex _instanceLockerMutex;
         private readonly string _pipeName;
-        private readonly SynchronizationContext _synchronizationContext = SynchronizationContext.Current;
 
         private SingleInstanceManager(string? guid, bool global = false)
         {
@@ -73,6 +72,8 @@ namespace SingleInstanceManager
                 }
             }
         }
+
+        public SynchronizationContext? SynchronizationContext { get; set; } = SynchronizationContext.Current;
 
         public void Dispose()
         {
@@ -163,10 +164,10 @@ namespace SingleInstanceManager
         private void OnSecondInstanceStarted(string[] e)
         {
             SecondInstanceStartupEventArgs eventArgs = new SecondInstanceStartupEventArgs(e);
-            if ((_synchronizationContext != null) && SecondInstanceStarted is {} secondInstanceHandler)
+            if ((SynchronizationContext != null) && SecondInstanceStarted is { } secondInstanceHandler)
             {
-                _synchronizationContext.Post(
-                    state => secondInstanceHandler.Invoke(null, (SecondInstanceStartupEventArgs) state),
+                SynchronizationContext.Post(
+                    state => secondInstanceHandler.Invoke(null, (SecondInstanceStartupEventArgs)state),
                     eventArgs);
             }
             else
