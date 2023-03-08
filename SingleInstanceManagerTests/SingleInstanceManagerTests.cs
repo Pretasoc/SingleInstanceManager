@@ -17,7 +17,7 @@ namespace SingleInstanceManager.Tests
         {
             var manager = SingleInstanceManager.CreateManager("unitTest");
 
-            var start1 = manager.RunApplication(new string[] { });
+            var start1 = manager.RunApplication(Array.Empty<string>());
             Assert.AreEqual(true, start1);
 
             var secondSignaled = false;
@@ -28,7 +28,7 @@ namespace SingleInstanceManager.Tests
 
             var t = new Thread(() =>
             {
-                var start2 = manager.RunApplication(new string[] { });
+                var start2 = manager.RunApplication(Array.Empty<string>());
                 Assert.AreEqual(false, start2);
             });
 
@@ -37,6 +37,37 @@ namespace SingleInstanceManager.Tests
             t.Join();
 
             Assert.That(secondSignaled);
+            manager.Shutdown();
+        }
+
+        [Test]
+        public void ExceptionOnEvent([Range(1, 5)] int numThreads)
+        {
+            var manager = SingleInstanceManager.CreateManager("unitTest");
+
+            var start1 = manager.RunApplication(new string[] { });
+            Assert.AreEqual(true, start1);
+
+            manager.SecondInstanceStarted += (sender, e) => throw new Exception();
+
+            Thread[] threads = new Thread[numThreads - 1];
+            for (int i = 0; i < numThreads; i++)
+            {
+                var t = new Thread(() =>
+                {
+                    var start2 = manager.RunApplication(new string[] { });
+                    Assert.AreEqual(false, start2);
+                });
+
+
+                t.Start();
+                threads[i] = t;
+            }
+
+            foreach (Thread thread in threads)
+            {
+                thread.Join();
+            }
             manager.Shutdown();
         }
 
@@ -73,8 +104,6 @@ namespace SingleInstanceManager.Tests
                 Assert.Warn("Signal timed out");
             };
             manager.Shutdown();
-
-
 
         }
     }
