@@ -58,10 +58,11 @@ namespace SingleInstanceManager
         {
             get
             {
-                while (_instance == null)
+                if (_instance == null)
                 {
-                    Interlocked.Exchange(ref _instance, new SingleInstanceManager(null));
+                    Interlocked.CompareExchange(ref _instance, new SingleInstanceManager(null), null);
                 }
+
                 return _instance;
             }
             private set
