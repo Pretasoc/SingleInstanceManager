@@ -31,19 +31,21 @@ namespace SingleInstanceManager
     /// </example>
     public class SingleInstanceManager : IDisposable
     {
+        private const string GlobalNamespace = "Global";
+        private const string LocalNamespace = "Local";
         private static SingleInstanceManager? _instance;
         private readonly CancellationTokenSource _cts;
         private readonly Mutex _instanceLockerMutex;
         private readonly string _pipeName;
         private readonly SynchronizationContext _synchronizationContext = SynchronizationContext.Current;
 
-        private SingleInstanceManager(string? guid)
+        private SingleInstanceManager(string? guid, bool global = false)
         {
             // create a (hopefully) unique mutex name
             string assemblyName = guid ?? Assembly.GetEntryAssembly()?.FullName ?? "SingleInstanceManager";
 
             // this mutex will be shared across the system to signal an existing instance
-            _instanceLockerMutex = new Mutex(true, assemblyName);
+            _instanceLockerMutex = new Mutex(true, $"{(global ? GlobalNamespace : LocalNamespace)}\\{assemblyName}");
 
             // create a (hopefully) unique lock name
             _pipeName = assemblyName + "argsStream";
@@ -79,9 +81,9 @@ namespace SingleInstanceManager
             _cts?.Dispose();
         }
 
-        public static SingleInstanceManager CreateManager(string? guid = null)
+        public static SingleInstanceManager CreateManager(string? guid = null, bool global = false)
         {
-            return Instance = new SingleInstanceManager(guid);
+            return Instance = new SingleInstanceManager(guid, global);
         }
 
         public bool RunApplication(string[] args)
