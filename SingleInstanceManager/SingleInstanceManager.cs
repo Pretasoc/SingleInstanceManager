@@ -134,6 +134,7 @@ namespace SingleInstanceManager
 
         private async void ConnectionLoop(CancellationToken cancellationToken)
         {
+            SemaphoreSlim serverCounter = new SemaphoreSlim(2);
             void DoConnection(BinaryReader reader)
             {
                 try
@@ -151,11 +152,13 @@ namespace SingleInstanceManager
                 finally
                 {
                     reader.Dispose();
+                    serverCounter.Release();
                 }
             }
 
             while (!cancellationToken.IsCancellationRequested)
             {
+                await serverCounter.WaitAsync(cancellationToken).ConfigureAwait(false);
                 // Create a listeners on the pipe
                 NamedPipeServerStream server = new NamedPipeServerStream(
                     _pipeName,
@@ -163,7 +166,16 @@ namespace SingleInstanceManager
                     2,
                     PipeTransmissionMode.Message);
                 BinaryReader reader = new BinaryReader(server, Encoding.Default, false);
-                await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    server.Dispose();
+                    serverCounter.Release();
+                    continue;
+                }
                 _ = Task.Run(() => DoConnection(reader), cancellationToken);
             }
         }
