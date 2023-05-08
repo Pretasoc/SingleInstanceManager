@@ -114,7 +114,7 @@ namespace SingleInstanceManager
             // We use a simple protocol here:
             // Send an integer indicating the count of parameters
             // Send each parameter as length prefixed unicode string.
-            using BinaryWriter writer = new BinaryWriter(client);
+            using BinaryWriter writer = new BinaryWriter(client, Encoding.Unicode);
             writer.Write(args.Length);
 
             foreach (string arg in args)
@@ -165,7 +165,7 @@ namespace SingleInstanceManager
                     PipeDirection.In,
                     2,
                     PipeTransmissionMode.Message);
-                BinaryReader reader = new BinaryReader(server, Encoding.Default, false);
+                BinaryReader reader = new BinaryReader(server, Encoding.Unicode, false);
                 try
                 {
                     await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
