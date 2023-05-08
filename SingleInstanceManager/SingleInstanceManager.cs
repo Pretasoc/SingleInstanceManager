@@ -81,6 +81,7 @@ namespace SingleInstanceManager
             _instanceLockerMutex?.Dispose();
 
             _cts?.Dispose();
+            _instance = null;
         }
 
         public static SingleInstanceManager CreateManager(string? guid = null, bool global = false)
