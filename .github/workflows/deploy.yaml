@@ -1,0 +1,45 @@
+name: Upload dotnet package
+
+on:
+  push:
+    tags: ['*']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+    permissions:
+      packages: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0
+        with:
+            versionSpec: '5.x'
+      - name: Determine Version
+        uses: gittools/actions/gitversion/execute@v0
+        with:
+          useConfigFile: true
+      - name: Setup .NET Core SDK 6.0.404
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 6.0.404
+      - run: dotnet build phirSOFT.TopologicalComparison/phirSOFT.TopologicalComparison.csproj --configuration Release
+      - name: Create the package
+        run: dotnet pack phirSOFT.TopologicalComparison/phirSOFT.TopologicalComparison.csproj --configuration Release
+      - name: Publish the package to GPR
+        run: dotnet nuget push phirSOFT.ConstraintedComparison/bin/Release/*.nupkg
+        env:
+          NUGET_AUTH_TOKEN: ${{secrets.NUGETTOKEN}}
+      - uses: actions/create-release@v1
+        with:
+          draft: false
+          prerelease: false
+          release_name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ github.ref }}
+          body_path: CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
