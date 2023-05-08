@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
 using System.Reflection;
@@ -115,12 +117,13 @@ namespace SingleInstanceManager
             // Send an integer indicating the count of parameters
             // Send each parameter as length prefixed unicode string.
             using BinaryWriter writer = new BinaryWriter(client, Encoding.Unicode);
-            writer.Write(args.Length);
+            writer.WriteArray(args);
 
-            foreach (string arg in args)
-            {
-                writer.Write(arg);
-            }
+            writer.Write(0);
+            writer.Write(Environment.CurrentDirectory);
+
+            IDictionary environmentVariables = Environment.GetEnvironmentVariables(EnvironmentVariableTarget.Process);
+            writer.WriteDictionary(environmentVariables);
 
             client.WaitForPipeDrain();
 
@@ -139,15 +142,11 @@ namespace SingleInstanceManager
             {
                 try
                 {
-                    int argNumber = reader.ReadInt32();
-                    string[] args = new string[argNumber];
-
-                    for (int i = 0; i < argNumber; i++)
-                    {
-                        args[i] = reader.ReadString();
-                    }
-
-                    OnSecondInstanceStarted(args);
+                    string[] args = reader.ReadArray();
+                    _ = reader.ReadInt32();
+                    string commandLine = reader.ReadString();
+                    IReadOnlyDictionary<string, string> environmentVariables = reader.ReadDictionary();
+                    OnSecondInstanceStarted(args, environmentVariables, commandLine);
                 }
                 finally
                 {
@@ -180,14 +179,17 @@ namespace SingleInstanceManager
             }
         }
 
-        private void OnSecondInstanceStarted(string[] e)
+        private void OnSecondInstanceStarted(string[] parameters, IReadOnlyDictionary<string, string> environmentalVariables, string workingDirectory)
         {
             if (SecondInstanceStarted is not { } secondInstanceStarted)
             {
                 return;
             }
 
-            SecondInstanceStartupEventArgs eventArgs = new SecondInstanceStartupEventArgs(e);
+            SecondInstanceStartupEventArgs eventArgs = new SecondInstanceStartupEventArgs(
+                parameters,
+                environmentalVariables,
+                workingDirectory);
 
             void RaiseSecondInstanceStarted(object o)
             {
