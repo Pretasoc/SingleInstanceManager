@@ -182,16 +182,33 @@ namespace SingleInstanceManager
 
         private void OnSecondInstanceStarted(string[] e)
         {
-            SecondInstanceStartupEventArgs eventArgs = new SecondInstanceStartupEventArgs(e);
-            if ((SynchronizationContext != null) && SecondInstanceStarted is { } secondInstanceHandler)
+            if (SecondInstanceStarted is not { } secondInstanceStarted)
             {
-                SynchronizationContext.Post(
-                    state => secondInstanceHandler.Invoke(null, (SecondInstanceStartupEventArgs)state),
-                    eventArgs);
+                return;
+            }
+
+            SecondInstanceStartupEventArgs eventArgs = new SecondInstanceStartupEventArgs(e);
+
+            void RaiseSecondInstanceStarted(object o)
+            {
+                try
+                {
+                    secondInstanceStarted.Invoke(this, eventArgs);
+                }
+                catch (Exception)
+                {
+                    // ignored
+                    // we ignore all exceptions from raising the SecondInstanceStarted to prevent starvation of a connection.
+                }
+            }
+
+            if (SynchronizationContext != null)
+            {
+                SynchronizationContext.Post(RaiseSecondInstanceStarted, null);
             }
             else
             {
-                ThreadPool.QueueUserWorkItem(o => SecondInstanceStarted?.Invoke(null, (SecondInstanceStartupEventArgs)o), eventArgs);
+                ThreadPool.QueueUserWorkItem(RaiseSecondInstanceStarted, null);
             }
         }
     }
