@@ -1,11 +1,22 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27004.2002
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33530.505
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SingleInstanceManager", "SingleInstanceManager\SingleInstanceManager.csproj", "{19DB753F-2E91-45F2-8F0D-7B95583190D8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SingleInstanceManager", "SingleInstanceManager\SingleInstanceManager.csproj", "{19DB753F-2E91-45F2-8F0D-7B95583190D8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SingleInstanceManagerTests", "SingleInstanceManagerTests\SingleInstanceManagerTests.csproj", "{CB5F6CA7-4030-4CD4-A76A-F5D6A1717DA4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SingleInstanceManagerTests", "SingleInstanceManagerTests\SingleInstanceManagerTests.csproj", "{CB5F6CA7-4030-4CD4-A76A-F5D6A1717DA4}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{73ECF10C-FE7A-495A-ACE0-FB279A0798EF}"
+	ProjectSection(SolutionItems) = preProject
+		.github\dependabot.yml = .github\dependabot.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{7493B337-257A-4385-A51E-F6078AF0B6F4}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\build.yaml = .github\workflows\build.yaml
+		.github\workflows\deploy.yaml = .github\workflows\deploy.yaml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,6 +35,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{7493B337-257A-4385-A51E-F6078AF0B6F4} = {73ECF10C-FE7A-495A-ACE0-FB279A0798EF}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2BD918ED-F3F4-4DF0-837E-65D156A3424D}

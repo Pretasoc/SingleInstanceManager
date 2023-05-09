@@ -3,7 +3,7 @@ name: Upload dotnet package
 on:
   push:
     tags: ['*']
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 jobs:
   deploy:
@@ -27,13 +27,11 @@ jobs:
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: 6.0.404
-      - run: dotnet build phirSOFT.TopologicalComparison/phirSOFT.TopologicalComparison.csproj --configuration Release
+      - run: dotnet build SingleInstanceManager/SingleInstanceManager.csproj --configuration Release
       - name: Create the package
-        run: dotnet pack phirSOFT.TopologicalComparison/phirSOFT.TopologicalComparison.csproj --configuration Release
+        run: dotnet pack SingleInstanceManager/SingleInstanceManager.csproj --configuration Release
       - name: Publish the package to GPR
-        run: dotnet nuget push phirSOFT.ConstraintedComparison/bin/Release/*.nupkg
-        env:
-          NUGET_AUTH_TOKEN: ${{secrets.NUGETTOKEN}}
+        run: dotnet nuget push SingleInstanceManager\bin\Release\*.nupkg -s https://api.nuget.org/v3/index.json -k ${{secrets.NUGETTOKEN}}
       - uses: actions/create-release@v1
         with:
           draft: false
