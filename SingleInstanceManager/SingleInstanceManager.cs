@@ -38,7 +38,10 @@ namespace SingleInstanceManager
         private static SingleInstanceManager? _instance;
         private readonly CancellationTokenSource _cts;
         private readonly Mutex _instanceLockerMutex;
+        private readonly MutexContext _mutexContext = new MutexContext();
         private readonly string _pipeName;
+        private bool _disposed;
+        private int _reentranceCounter;
 
         private SingleInstanceManager(string? guid, bool global = false)
         {
@@ -46,7 +49,7 @@ namespace SingleInstanceManager
             string assemblyName = guid ?? Assembly.GetEntryAssembly()?.FullName ?? "SingleInstanceManager";
 
             // this mutex will be shared across the system to signal an existing instance
-            _instanceLockerMutex = new Mutex(true, $"{(global ? GlobalNamespace : LocalNamespace)}\\{assemblyName}");
+            _instanceLockerMutex = new Mutex(false, $"{(global ? GlobalNamespace : LocalNamespace)}\\{assemblyName}");
 
             // create a (hopefully) unique lock name
             _pipeName = assemblyName + "argsStream";
@@ -80,8 +83,20 @@ namespace SingleInstanceManager
 
         public void Dispose()
         {
-            _instanceLockerMutex?.Dispose();
+            if (_disposed)
+            {
+                return;
+            }
 
+            _disposed = true;
+            _mutexContext.Execute(
+                () =>
+                {
+                    _instanceLockerMutex?.Dispose();
+                    Interlocked.Decrement(ref _reentranceCounter);
+                });
+
+            _mutexContext.Dispose();
             _cts?.Dispose();
             _instance = null;
         }
@@ -96,7 +111,11 @@ namespace SingleInstanceManager
             try
             {
                 // if WaitOne returns true, no other instance has taken the mutex
-                if (_instanceLockerMutex.WaitOne(0))
+                // All calls to the mutex are made through _mutex context, to ensure
+                // we release the lock on the same thread, as we locked earlier
+                bool acquiredLock = _mutexContext.Execute(LockMutex);
+
+                if (acquiredLock)
                 {
                     Task.Factory.StartNew(() => ConnectionLoop(_cts.Token), TaskCreationOptions.LongRunning);
                     return true;
@@ -138,6 +157,7 @@ namespace SingleInstanceManager
         private async void ConnectionLoop(CancellationToken cancellationToken)
         {
             SemaphoreSlim serverCounter = new SemaphoreSlim(2);
+
             void DoConnection(BinaryReader reader)
             {
                 try
@@ -175,11 +195,37 @@ namespace SingleInstanceManager
                     serverCounter.Release();
                     continue;
                 }
+
                 _ = Task.Run(() => DoConnection(reader), cancellationToken);
             }
         }
 
-        private void OnSecondInstanceStarted(string[] parameters, IReadOnlyDictionary<string, string> environmentalVariables, string workingDirectory)
+        private bool LockMutex()
+        {
+            if (!_instanceLockerMutex.WaitOne(0))
+            {
+                return false;
+            }
+
+            // In normal scenarios the WaitOne call above is sufficient,
+            // but in a scenario, like our unit cases, the forcing all mutex calls
+            // to a single thread causes a problem, because mutex is reentrant we 
+            // could lock on the same mutex more than once. So we have to count
+            // on ourself and limit the lock count to one.
+            if (Interlocked.Increment(ref _reentranceCounter) > 1)
+            {
+                Interlocked.Decrement(ref _reentranceCounter);
+                _instanceLockerMutex.ReleaseMutex();
+                return false;
+            }
+
+            return true;
+        }
+
+        private void OnSecondInstanceStarted(
+            string[] parameters,
+            IReadOnlyDictionary<string, string> environmentalVariables,
+            string workingDirectory)
         {
             if (SecondInstanceStarted is not { } secondInstanceStarted)
             {
